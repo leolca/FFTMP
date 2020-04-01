@@ -1,7 +1,7 @@
 # FFTMP
 Multi-Precision FFT (implementation in C)
 
-Implementation of FFT using Cooley–Tukey FFT algorithm and GNU MPC (Multiple Precision Complex Library).
+Implementation of FFT using Cooley–Tukey algorithm and GNU MPC (Multiple Precision Complex Library).
 
 Compile:
 ```bash
