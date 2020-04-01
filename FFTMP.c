@@ -109,7 +109,7 @@ void _fft(mpc_t *x, mpc_t *X, unsigned int n, unsigned int step)
    }
 }
 
-void fft(mpc_t *x, unsigned int n)
+mpc_t *fft(mpc_t *x, unsigned int n)
 {
    mpc_t *X = malloc(n * sizeof(mpc_t));
    for (int i = 0; i < n; i++) 
@@ -117,9 +117,28 @@ void fft(mpc_t *x, unsigned int n)
       mpc_init2 (X[i], 256);
       mpc_set(X[i], x[i], MPC_RNDDN);
    }
-   _fft(x, X, n, 1);
-   clear_mpc_array (X, n);
+   _fft(X, x, n, 1);
+   return X;
 }
+
+mpc_t * ifft(mpc_t *X, unsigned int n)
+{
+   mpc_t *x = malloc(n * sizeof(mpc_t));
+   for (int i = 0; i < n; i++)
+   {
+      mpc_init2 (x[i], 256);
+      mpc_conj(X[i], X[i], MPC_RNDDN);
+      mpc_set(x[i], X[i], MPC_RNDDN);
+   }
+   _fft(x, X, n, 1);
+   for (int i = 0; i < n; i++)
+   {
+      mpc_conj(x[i], x[i], MPC_RNDDN);
+      mpc_div_ui(x[i], x[i], n, MPC_RNDDN);
+   }
+   return x;
+}
+
 
 mpc_t *read_complex_data (FILE *stream, unsigned int *xLen)
 {
@@ -178,12 +197,12 @@ void zeropad_mpc_array (mpc_t * x, unsigned int *xLen, unsigned int n)
    *xLen += n;
 }
 
-void print_mpc_array (mpc_t *x, int xLen)
+void print_mpc_array (mpc_t *x, int xLen, size_t n)
 {
   char *buffer = (char*) malloc(DEFAULTSTRLEN * sizeof(char));
   for (int i=0; i<xLen; i++)
   {
-     buffer = mpc_get_str (10, 0, x[i], MPC_RNDDN);
+     buffer = mpc_get_str (10, n, x[i], MPC_RNDDN);
      printf("%s\n",buffer);
      mpc_free_str(buffer);
   }
@@ -193,7 +212,7 @@ int main(int argc, char *argv[])
 {
   int opt;
   FILE *stream = NULL;
-  mpc_t *x, *X;
+  mpc_t *x, *X, *xr;
   unsigned int xLen = 0, XLen = 0;
   unsigned int mLen = DEFAULTLEN;
 
@@ -224,7 +243,7 @@ int main(int argc, char *argv[])
   x = read_complex_data (stream, &xLen);
 
   printf("Data:\n");
-  print_mpc_array (x, xLen);
+  print_mpc_array (x, xLen, 2);
 
   printf("Data length: %d\n",xLen);
   if (!isPowerofTwo (xLen))
@@ -234,11 +253,16 @@ int main(int argc, char *argv[])
     zeropad_mpc_array (x, &xLen, newxLen - xLen);
   }
   
-  fft (x, xLen);
+  X = fft (x, xLen);
   printf("FFT:\n");
-  print_mpc_array (x, xLen);  
+  print_mpc_array (X, xLen, 2);  
+  xr = ifft (X, xLen);
+  printf("iFFT:\n");
+  print_mpc_array (xr, xLen, 2);
 
   clear_mpc_array (x, xLen);
+  clear_mpc_array (X, xLen);
+  clear_mpc_array (xr, xLen);
   fclose(stream);
   return 0;
 }
