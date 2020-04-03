@@ -20,12 +20,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <getopt.h>
-#include <gmp.h>
-#include <mpfr.h>
-#include <mpc.h>
-
-#define DEFAULTLEN 256
-#define DEFAULTSTRLEN 256
+#include "FFTMP.h"
 
 // compile: gcc FFTMP.c -std=c99 -lmpfr -lgmp -lmpc -o FFTMP
 // test: echo -n "1 1 1 1 0 0 0 0" | ./FFTMP
@@ -45,100 +40,6 @@ void PrintHelp()
     printf("./FFTMP -i x_file\n");
     exit(1);
 }
-
-int isPowerofTwo(unsigned int x)
-{
-  if (x == 0) return 0;
-  while (x > 1)
-  {
-     if (x % 2 != 0) return 0;
-     x /= 2;
-  }
-  return 1;
-}
-
-unsigned int nextPowerofTwo(unsigned int x)
-{
-  // Bit Twiddling Hacks
-  // By Sean Eron Anderson
-  // https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-  x--;
-  x |= x >> 1;
-  x |= x >> 2;
-  x |= x >> 4;
-  x |= x >> 8;
-  x |= x >> 16;
-  x++;
-  return x;
-}
-
-void clear_mpc_array(mpc_t *x, unsigned int xLen)
-{
-  for (int i=0; i<xLen; i++) mpc_clear(x[i]);
-  free(x);
-}
-
-void _fft(mpc_t *x, mpc_t *X, unsigned int n, unsigned int step)
-{
-   if (step < n)
-   {
-     _fft(X, x, n, step*2);
-     _fft(X + step, x + step, n, step*2);
-
-     mpc_t r, I;
-     mpfr_t PI;
-     mpc_init2 (r, 256);
-     mpc_init2 (I, 256);
-     mpfr_inits2 (256, PI, (mpfr_ptr) 0);
-     mpfr_const_pi (PI, MPFR_RNDN);
-     mpc_set_ui_ui (I, 0, -1, MPC_RNDDN);
-     for (int i = 0; i < n; i += 2 * step) 
-     {
-	// r = exp(-I * PI * i / n) * X[i + step];
-	mpc_mul_fr (r, I, PI, MPC_RNDDN); // -I * pi
-	mpc_mul_ui (r, r, i, MPC_RNDDN); // -I * pi * i
-	mpc_div_ui (r, r, n, MPC_RNDDN); // -I * pi * i / n
-	mpc_exp (r, r, MPC_RNDDN); // exp(-I * pi * i / n)
-	mpc_mul (r, r, X[i + step], MPC_RNDDN);
-	mpc_add (x[i/2], X[i], r, MPC_RNDDN); // x[i/2] = X[i] + r;
-	mpc_sub (x[(i + n)/2], X[i], r, MPC_RNDDN); // x[(i + n)/2] = X[i] - r;
-     }
-     mpc_clear(r);
-     mpc_clear(I);
-     mpfr_clears (PI, (mpfr_ptr) 0);
-   }
-}
-
-mpc_t *fft(mpc_t *x, unsigned int n)
-{
-   mpc_t *X = malloc(n * sizeof(mpc_t));
-   for (int i = 0; i < n; i++) 
-   {
-      mpc_init2 (X[i], 256);
-      mpc_set(X[i], x[i], MPC_RNDDN);
-   }
-   _fft(X, x, n, 1);
-   return X;
-}
-
-mpc_t * ifft(mpc_t *X, unsigned int n)
-{
-   mpc_t *x = malloc(n * sizeof(mpc_t));
-   for (int i = 0; i < n; i++)
-   {
-      mpc_init2 (x[i], 256);
-      mpc_conj(X[i], X[i], MPC_RNDDN);
-      mpc_set(x[i], X[i], MPC_RNDDN);
-   }
-   _fft(x, X, n, 1);
-   for (int i = 0; i < n; i++)
-   {
-      mpc_conj(x[i], x[i], MPC_RNDDN);
-      mpc_div_ui(x[i], x[i], n, MPC_RNDDN);
-   }
-   return x;
-}
-
 
 mpc_t *read_complex_data (FILE *stream, unsigned int *xLen)
 {
@@ -185,27 +86,6 @@ mpc_t *read_complex_data (FILE *stream, unsigned int *xLen)
   }
 
   return x; 
-}
-
-void zeropad_mpc_array (mpc_t * x, unsigned int *xLen, unsigned int n)
-{
-   for (int i = 0; i < n; i++)
-   {
-      mpc_init2 (x[(*xLen)+i], 256);
-      mpc_set_ui (x[(*xLen)+i], 0, MPC_RNDDN);
-   }
-   *xLen += n;
-}
-
-void print_mpc_array (mpc_t *x, int xLen, size_t n)
-{
-  char *buffer = (char*) malloc(DEFAULTSTRLEN * sizeof(char));
-  for (int i=0; i<xLen; i++)
-  {
-     buffer = mpc_get_str (10, n, x[i], MPC_RNDDN);
-     printf("%s\n",buffer);
-     mpc_free_str(buffer);
-  }
 }
 
 int main(int argc, char *argv[]) 
