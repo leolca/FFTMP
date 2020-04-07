@@ -23,7 +23,10 @@
 
 int main(int argc, char *argv[]) 
 {
-  for (unsigned int i = 0; i < 101; i++)
+  int n;
+  if(argc>=2) n = atoi(argv[1]);  
+  else n = 101;
+  for (unsigned int i = 0; i < n; i++)
   {
     printf("n=%d : ",i);
     mpz_t *c = fftbincoeff (i);
